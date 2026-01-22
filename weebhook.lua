@@ -47,7 +47,7 @@ local function getItems()
 end
 
 local function SendStatusToDiscord()
-    if Webhook_URL == "YOUR_WEBHOOK_URL_HERE" then return end
+    if Webhook_URL == "https://discord.com/api/webhooks/1462798147528032399/s5vSfHQ9cRh31MdwZwJ2TDrkndATI__QilskIxpFBvm5Y4ty6AwXSKHbWbatNHceJfD5" then return end
     
     local melee, swords = getItems()
     local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
