@@ -5,7 +5,7 @@
 ]]
 
 -- // CẤU HÌNH //
-local Webhook_URL = "YOUR_WEBHOOK_URL_HERE" -- <--- DÁN LINK WEBHOOK VÀO ĐÂY
+local Webhook_URL = "https://discord.com/api/webhooks/1462798147528032399/s5vSfHQ9cRh31MdwZwJ2TDrkndATI__QilskIxpFBvm5Y4ty6AwXSKHbWbatNHceJfD5" -- <--- DÁN LINK WEBHOOK VÀO ĐÂY
 local FPS_TARGET = 20
 
 -- // SERVICES //
@@ -215,7 +215,7 @@ Float.MouseButton1Click:Connect(function() MainFrame.Visible = true; Float.Visib
 task.spawn(function()
     while true do
         SendStatusToDiscord()
-        task.wait(600) -- Gửi thông báo mỗi 10 phút
+        task.wait(300) -- Gửi thông báo mỗi 5 phút
     end
 end)
 
