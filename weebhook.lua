@@ -1,222 +1,248 @@
 --[[ 
-    BANANA HUB ALL-IN-ONE v4.0
-    Tính năng: Webhook Premium + Job ID Joiner + FPS Optimizer
-    Yêu cầu: Điền Webhook URL bên dưới
+    MODERN JOB ID JOINER v3.0
+    Tính năng: Tự động lọc ID + Nút Dán/Xóa nhanh
+    Hỗ trợ: PC & Mobile (Delta, Fluxus, Hydrogen...)
+    Tác giả: Gemini Helper
 ]]
 
--- // CẤU HÌNH //
-local Webhook_URL = "https://discord.com/api/webhooks/1462798147528032399/s5vSfHQ9cRh31MdwZwJ2TDrkndATI__QilskIxpFBvm5Y4ty6AwXSKHbWbatNHceJfD5" -- <--- DÁN LINK WEBHOOK VÀO ĐÂY
-local FPS_TARGET = 20
-
--- // SERVICES //
 local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
 
-local player = Players.LocalPlayer
-local Data = player:WaitForChild("Data")
-
--- // 1. TỐI ƯU FPS & HIỆU SUẤT //
-if setfpscap then
-    setfpscap(FPS_TARGET)
-    settings().Rendering.QualityLevel = 1
-    -- RunService:Set3dRenderingEnabled(false) -- Bỏ comment nếu muốn tắt hẳn màn hình game
+-- 1. DỌN DẸP UI CŨ
+if CoreGui:FindFirstChild("SmartJoinerV3") then
+    CoreGui.SmartJoinerV3:Destroy()
 end
 
--- // 2. LOGIC LẤY THÔNG TIN ACC //
-local function getItems()
-    local meleeTable, swordTable = {}, {}
-    local function scan(container)
-        for _, item in pairs(container:GetChildren()) do
-            if item:IsA("Tool") then
-                if item:FindFirstChild("Melee") or item.ToolTip == "Melee" then
-                    table.insert(meleeTable, "👊 " .. item.Name)
-                else
-                    table.insert(swordTable, "⚔️ " .. item.Name)
-                end
-            end
-        end
+-- 2. THIẾT LẬP GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SmartJoinerV3"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local Colors = {
+    Bg = Color3.fromRGB(20, 20, 25),
+    Input = Color3.fromRGB(35, 35, 40),
+    Accent = Color3.fromRGB(0, 140, 255), -- Xanh dương sáng
+    Text = Color3.fromRGB(240, 240, 240),
+    Red = Color3.fromRGB(255, 60, 60),
+    Green = Color3.fromRGB(60, 220, 100)
+}
+
+-- == MAIN FRAME ==
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Colors.Bg
+MainFrame.Position = UDim2.new(0.5, -150, 0.3, 0) -- Giữa màn hình
+MainFrame.Size = UDim2.new(0, 300, 0, 150) -- Kích thước gọn
+MainFrame.ClipsDescendants = true
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Parent = MainFrame
+MainStroke.Color = Colors.Accent
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.6
+
+-- DRAGGABLE (Kéo thả)
+local DragFrame = Instance.new("Frame")
+DragFrame.Parent = MainFrame
+DragFrame.BackgroundTransparency = 1
+DragFrame.Size = UDim2.new(1, 0, 1, 0)
+local dragging, dragInput, dragStart, startPos
+DragFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
     end
-    scan(player.Backpack)
-    if player.Character then scan(player.Character) end
-    return table.concat(meleeTable, ", "), table.concat(swordTable, ", ")
-end
+end)
+DragFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
-local function SendStatusToDiscord()
-    if Webhook_URL == "https://discord.com/api/webhooks/1462798147528032399/s5vSfHQ9cRh31MdwZwJ2TDrkndATI__QilskIxpFBvm5Y4ty6AwXSKHbWbatNHceJfD5" then return end
-    
-    local melee, swords = getItems()
-    local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
-    
-    local payload = {
-        ["username"] = "Banana Hub Premium",
-        ["embeds"] = {{
-            ["title"] = "🍌 **BANANA HUB - STATUS REPORT** 🍌",
-            ["color"] = 16773120,
-            ["thumbnail"] = { ["url"] = avatarUrl },
-            ["fields"] = {
-                {["name"] = "👤 **USER**", ["value"] = "```arm\n" .. player.Name .. " (" .. player.UserId .. ")```", ["inline"] = false},
-                {["name"] = "📊 **STATS**", ["value"] = "⭐ **Level:** `" .. Data.Level.Value .. "`\n🧬 **Race:** `" .. Data.Race.Value .. "`\n🍎 **Fruit:** `" .. (Data.Fruit.Value ~= "" and Data.Fruit.Value or "None") .. "`", ["inline"] = false},
-                {["name"] = "👊 **MELEE**", ["value"] = "```ini\n" .. (melee ~= "" and melee or "None") .. "```", ["inline"] = true},
-                {["name"] = "⚔️ **SWORDS**", ["value"] = "```ini\n" .. (swords ~= "" and swords or "None") .. "```", ["inline"] = true},
-                {["name"] = "💰 **CURRENCY**", ["value"] = "💵 **Beli:** " .. string.format("%.2fM", Data.Beli.Value/1000000) .. " | 💎 **Frags:** " .. Data.Fragments.Value, ["inline"] = false}
-            },
-            ["footer"] = {["text"] = "Updated: " .. os.date("%H:%M:%S")},
-            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
+-- == HEADER ==
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 12, 0, 8)
+Title.Size = UDim2.new(1, -50, 0, 20)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "SERVER HOPPER v3"
+Title.TextColor3 = Colors.Accent
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
 
-    local request = syn and syn.request or http_request or request or HttpPost
-    pcall(function()
-        request({Url = Webhook_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(payload)})
+-- Nút Thu Nhỏ (-)
+local MiniBtn = Instance.new("TextButton")
+MiniBtn.Parent = MainFrame
+MiniBtn.BackgroundColor3 = Colors.Input
+MiniBtn.Position = UDim2.new(1, -30, 0, 8)
+MiniBtn.Size = UDim2.new(0, 20, 0, 20)
+MiniBtn.Font = Enum.Font.GothamBold
+MiniBtn.Text = "_"
+MiniBtn.TextColor3 = Colors.Text
+MiniBtn.TextSize = 14
+local MiniCorner = Instance.new("UICorner")
+MiniCorner.CornerRadius = UDim.new(0, 4)
+MiniCorner.Parent = MiniBtn
+
+-- == HÀNG NHẬP LIỆU (Input Row) ==
+-- 1. Ô Nhập (Chiếm 65%)
+local InputBox = Instance.new("TextBox")
+InputBox.Parent = MainFrame
+InputBox.BackgroundColor3 = Colors.Input
+InputBox.Position = UDim2.new(0.04, 0, 0.3, 0)
+InputBox.Size = UDim2.new(0.65, 0, 0, 35)
+InputBox.Font = Enum.Font.Gotham
+InputBox.PlaceholderText = "Paste ID..."
+InputBox.Text = ""
+InputBox.TextColor3 = Colors.Text
+InputBox.TextSize = 12
+InputBox.TextTruncate = Enum.TextTruncate.AtEnd
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 6)
+InputCorner.Parent = InputBox
+local Pad = Instance.new("UIPadding")
+Pad.PaddingLeft = UDim.new(0, 8)
+Pad.Parent = InputBox
+
+-- 2. Nút Dán (Paste) - Chiếm 12%
+local PasteBtn = Instance.new("TextButton")
+PasteBtn.Parent = MainFrame
+PasteBtn.BackgroundColor3 = Colors.Accent
+PasteBtn.Position = UDim2.new(0.71, 0, 0.3, 0)
+PasteBtn.Size = UDim2.new(0.11, 0, 0, 35)
+PasteBtn.Font = Enum.Font.GothamBold
+PasteBtn.Text = "📋" -- Icon Paste
+PasteBtn.TextColor3 = Color3.new(1,1,1)
+PasteBtn.TextSize = 16
+local PasteCorner = Instance.new("UICorner")
+PasteCorner.CornerRadius = UDim.new(0, 6)
+PasteCorner.Parent = PasteBtn
+
+-- 3. Nút Xóa (Del) - Chiếm 12%
+local DelBtn = Instance.new("TextButton")
+DelBtn.Parent = MainFrame
+DelBtn.BackgroundColor3 = Colors.Red
+DelBtn.Position = UDim2.new(0.84, 0, 0.3, 0)
+DelBtn.Size = UDim2.new(0.11, 0, 0, 35)
+DelBtn.Font = Enum.Font.GothamBold
+DelBtn.Text = "✖" -- Icon X
+DelBtn.TextColor3 = Color3.new(1,1,1)
+DelBtn.TextSize = 16
+local DelCorner = Instance.new("UICorner")
+DelCorner.CornerRadius = UDim.new(0, 6)
+DelCorner.Parent = DelBtn
+
+-- == NÚT JOIN ==
+local JoinBtn = Instance.new("TextButton")
+JoinBtn.Parent = MainFrame
+JoinBtn.BackgroundColor3 = Colors.Accent
+JoinBtn.Position = UDim2.new(0.04, 0, 0.65, 0)
+JoinBtn.Size = UDim2.new(0.92, 0, 0, 35)
+JoinBtn.Font = Enum.Font.GothamBold
+JoinBtn.Text = "JOIN SERVER"
+JoinBtn.TextColor3 = Color3.new(1,1,1)
+JoinBtn.TextSize = 14
+local JoinCorner = Instance.new("UICorner")
+JoinCorner.CornerRadius = UDim.new(0, 6)
+JoinCorner.Parent = JoinBtn
+
+-- == ICON THU NHỎ (Floating) ==
+local FloatIcon = Instance.new("TextButton")
+FloatIcon.Name = "FloatIcon"
+FloatIcon.Parent = ScreenGui
+FloatIcon.BackgroundColor3 = Colors.Bg
+FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
+FloatIcon.Size = UDim2.new(0, 40, 0, 40)
+FloatIcon.Font = Enum.Font.GothamBold
+FloatIcon.Text = "J"
+FloatIcon.TextColor3 = Colors.Accent
+FloatIcon.TextSize = 20
+FloatIcon.Visible = false
+FloatIcon.Draggable = true
+local IconCorner = Instance.new("UICorner")
+IconCorner.CornerRadius = UDim.new(1, 0)
+IconCorner.Parent = FloatIcon
+local IconStroke = Instance.new("UIStroke")
+IconStroke.Parent = FloatIcon
+IconStroke.Color = Colors.Accent
+IconStroke.Thickness = 2
+
+-- == LOGIC ==
+
+-- Hiệu ứng bấm nút
+local function ripple(obj)
+    local t = TweenService:Create(obj, TweenInfo.new(0.1), {Size = UDim2.new(obj.Size.X.Scale, -2, obj.Size.Y.Scale, -2)})
+    t:Play()
+    t.Completed:Connect(function() 
+        TweenService:Create(obj, TweenInfo.new(0.1), {Size = UDim2.new(obj.Size.X.Scale, 0, obj.Size.Y.Scale, 0)}):Play() 
     end)
 end
 
--- // 3. GIAO DIỆN GUI (JOB ID JOINER) //
-if CoreGui:FindFirstChild("BananaJoinerV4") then CoreGui.BananaJoinerV4:Destroy() end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BananaJoinerV4"
-ScreenGui.Parent = CoreGui
-
-local Colors = {
-    Bg = Color3.fromRGB(25, 25, 30),
-    Input = Color3.fromRGB(40, 40, 45),
-    Accent = Color3.fromRGB(255, 210, 0), -- Màu vàng Banana
-    Text = Color3.fromRGB(255, 255, 255),
-    Red = Color3.fromRGB(255, 80, 80)
-}
-
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "Main"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Colors.Bg
-MainFrame.Position = UDim2.new(0.5, -150, 0.4, 0)
-MainFrame.Size = UDim2.new(0, 300, 0, 160)
-MainFrame.Active = true
-MainFrame.Draggable = true -- Hỗ trợ kéo thả đơn giản
-
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainFrame
-
-local Stroke = Instance.new("UIStroke")
-Stroke.Thickness = 2
-Stroke.Color = Colors.Accent
-Stroke.Parent = MainFrame
-
--- Title
-local Title = Instance.new("TextLabel")
-Title.Parent = MainFrame
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "🍌 BANANA SERVER HOPPER"
-Title.Font = Enum.Font.GothamBold
-Title.TextColor3 = Colors.Accent
-Title.TextSize = 14
-Title.BackgroundTransparency = 1
-
--- Input Box
-local InputBox = Instance.new("TextBox")
-InputBox.Parent = MainFrame
-InputBox.Size = UDim2.new(0.9, 0, 0, 35)
-InputBox.Position = UDim2.new(0.05, 0, 0.3, 0)
-InputBox.BackgroundColor3 = Colors.Input
-InputBox.PlaceholderText = "Paste Job ID here..."
-InputBox.Text = ""
-InputBox.TextColor3 = Colors.Text
-InputBox.Font = Enum.Font.Gotham
-local IC = Instance.new("UICorner")
-IC.CornerRadius = UDim.new(0, 6)
-IC.Parent = InputBox
-
--- Buttons Container
-local BtnFrame = Instance.new("Frame")
-BtnFrame.Parent = MainFrame
-BtnFrame.Position = UDim2.new(0.05, 0, 0.6, 0)
-BtnFrame.Size = UDim2.new(0.9, 0, 0, 40)
-BtnFrame.BackgroundTransparency = 1
-
-local UIList = Instance.new("UIListLayout")
-UIList.Parent = BtnFrame
-UIList.FillDirection = Enum.FillDirection.Horizontal
-UIList.Padding = UDim.new(0, 5)
-UIList.SortOrder = Enum.SortOrder.LayoutOrder
-
-local function createBtn(text, color, size, order)
-    local btn = Instance.new("TextButton")
-    btn.Size = size
-    btn.BackgroundColor3 = color
-    btn.Text = text
-    btn.Font = Enum.Font.GothamBold
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.LayoutOrder = order
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = btn
-    btn.Parent = BtnFrame
-    return btn
-end
-
-local PasteBtn = createBtn("📋", Colors.Accent, UDim2.new(0.2, -5, 1, 0), 1)
-local DelBtn = createBtn("✖", Colors.Red, UDim2.new(0.2, -5, 1, 0), 2)
-local JoinBtn = createBtn("JOIN SERVER", Color3.fromRGB(60, 200, 100), UDim2.new(0.6, 0, 1, 0), 3)
-
--- Minimize Button
-local MiniBtn = Instance.new("TextButton")
-MiniBtn.Parent = MainFrame
-MiniBtn.Size = UDim2.new(0, 25, 0, 25)
-MiniBtn.Position = UDim2.new(1, -35, 0, 5)
-MiniBtn.Text = "-"
-MiniBtn.BackgroundColor3 = Colors.Input
-MiniBtn.TextColor3 = Colors.Accent
-Instance.new("UICorner", MiniBtn).CornerRadius = UDim.new(0, 5)
-
--- Floating Icon
-local Float = Instance.new("TextButton")
-Float.Parent = ScreenGui
-Float.Size = UDim2.new(0, 45, 0, 45)
-Float.Position = UDim2.new(0.05, 0, 0.1, 0)
-Float.BackgroundColor3 = Colors.Bg
-Float.Text = "🍌"
-Float.TextSize = 25
-Float.Visible = false
-Float.Draggable = true
-Instance.new("UICorner", Float).CornerRadius = UDim.new(1, 0)
-Instance.new("UIStroke", Float).Color = Colors.Accent
-
--- // 4. LOGIC TƯƠNG TÁC //
+-- Chức năng Paste (Sử dụng getclipboard)
 PasteBtn.MouseButton1Click:Connect(function()
+    ripple(PasteBtn)
+    -- Thử lấy dữ liệu từ clipboard
     local success, clip = pcall(function() return getclipboard() end)
-    if success then InputBox.Text = clip end
+    if success and clip then
+        InputBox.Text = clip
+    else
+        InputBox.PlaceholderText = "Không hỗ trợ!"
+        wait(1)
+        InputBox.PlaceholderText = "Paste ID..."
+    end
 end)
 
-DelBtn.MouseButton1Click:Connect(function() InputBox.Text = "" end)
+-- Chức năng Xóa
+DelBtn.MouseButton1Click:Connect(function()
+    ripple(DelBtn)
+    InputBox.Text = ""
+end)
 
+-- Chức năng Join (Tự lọc ID)
 JoinBtn.MouseButton1Click:Connect(function()
-    local jobId = string.match(InputBox.Text, "%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x")
+    ripple(JoinBtn)
+    local rawText = InputBox.Text
+    -- Pattern lọc UUID chuẩn
+    local jobId = string.match(rawText, "%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x")
+    
     if jobId then
         JoinBtn.Text = "CONNECTING..."
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, player)
+        JoinBtn.BackgroundColor3 = Colors.Green
+        local s, e = pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
+        end)
+        if not s then
+            JoinBtn.Text = "FAILED"
+            JoinBtn.BackgroundColor3 = Colors.Red
+            warn(e)
+            wait(2)
+            JoinBtn.Text = "JOIN SERVER"
+            JoinBtn.BackgroundColor3 = Colors.Accent
+        end
     else
         JoinBtn.Text = "INVALID ID"
-        task.wait(1)
+        JoinBtn.BackgroundColor3 = Colors.Red
+        wait(1)
         JoinBtn.Text = "JOIN SERVER"
+        JoinBtn.BackgroundColor3 = Colors.Accent
     end
 end)
 
-MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; Float.Visible = true end)
-Float.MouseButton1Click:Connect(function() MainFrame.Visible = true; Float.Visible = false end)
-
--- // KHỞI CHẠY //
-task.spawn(function()
-    while true do
-        SendStatusToDiscord()
-        task.wait(300) -- Gửi thông báo mỗi 5 phút
-    end
-end)
-
-print("🍌 Banana Hub All-In-One Loaded!")
+-- Thu nhỏ / Phóng to
+MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; FloatIcon.Visible = true end)
+FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFrame.Visible = true end)
